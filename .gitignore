@@ -60,3 +60,7 @@ Thumbs.db
 .progress
 .fetch-models.lock
 /apksigner-out.txt
+
+# Python 缓存
+__pycache__/
+*.pyc
