@@ -188,7 +188,23 @@ vendor/
 
 #### 2.1.3 在 GitHub 仓库里配置 6 个 Secrets
 
-进 GitHub 仓库 → Settings → Secrets and variables → Actions → New repository secret：
+**推荐：用脚本一次传完**（不用在网页上点 6 次）：
+
+```bash
+export GITHUB_TOKEN=github_pat_xxx                       # 需 Secrets 写权限
+export APPLE_CERTIFICATE="$(base64 -i Certificates.p12)"
+export APPLE_CERTIFICATE_PASSWORD='导出 p12 时的密码'
+export APPLE_SIGNING_IDENTITY='Apple Distribution: 张三 (TEAMID)'
+export APPLE_ID='you@example.com'
+export APPLE_PASSWORD='xxxx-xxxx-xxxx-xxxx'              # App 专用密码
+export APPLE_TEAM_ID='ABCDE12345'
+./setup-ios-secrets.sh
+```
+
+脚本会用仓库自己的 libsodium 公钥做 sealed box 加密后再上传（GitHub 不收明文），
+需要 `pip install pynacl`。6 个名字与 `.github/workflows/build-ios.yml` 消费的完全一致。
+
+**或者在网页上手动加**：Settings → Secrets and variables → Actions → New repository secret：
 
 | Secret | 内容 |
 | --- | --- |

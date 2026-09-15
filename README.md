@@ -40,25 +40,65 @@ Windows 的两个包**两条路都能出**，任选：
 > 三个只影响 Windows 的 bug（Python 中文日志崩溃、`shasum` 命令不存在、
 > `title_bar_style` 是 macOS 专属 API）。都已修复，详见下面「运行验证」。
 
-### Windows 包里确实带了模型（体积反推验证）
+### 四个包里的模型，已逐个解包实测
 
-`.exe` 是 NSIS 的 **solid LZMA** 压缩包，文件名也被压在数据流里，
-所以直接 `grep 'encoder_model_q4.onnx'` **一次都搜不到** ——
-但这不代表模型没进去（拿 APK 做阳性对照：模型是 STORED 不压缩，同样的
-扫描能搜到 2 次和 20 次，证明扫描方法本身有效）。
+「离线版」的命门就是模型必须真的在包里。四个已产出的包都拆开验过了，
+两个 `.onnx` 的 SHA-256 与 `fetch-models.sh` 里登记的官方哈希**逐字节一致**：
 
-改用体积反推：
+| 包 | 模型在哪 | encoder | decoder |
+| --- | --- | --- | --- |
+| DMG | `音转文.app/Contents/Resources/models/…` | ✅ | ✅ |
+| EXE | `models/whisper-large-v3-turbo/onnx/` | ✅ | ✅ |
+| MSI | 内部 CAB 流 | ✅ | ✅ |
+| APK | `assets/web/models/…`（STORED 不压缩） | ✅ | ✅ |
 
-| 内容 | 原始 | LZMA 后 |
-| --- | --- | --- |
-| encoder_model_q4.onnx | 405.3 MB | 约 269.9 MB（实测比 0.666） |
-| decoder_model_merged_q4.onnx | 318.7 MB | 约 203.5 MB（实测比 0.639） |
-| 前端 + 推理运行时 | 35.5 MB | 约 12 MB |
-| 可执行程序 | — | 约 10 MB |
-| **合计预估** | | **约 496 MB** |
-| **实际 EXE** | | **461.05 MB** |
+官方哈希：`7e64b20d…47d78`（encoder，424942775 字节）、
+`8b933ac2…ceeb8`（decoder，334147222 字节）。
 
-差 7%，在估算误差内（前端压缩比是估的，NSIS 的 LZMA 字典也更大）。
+### 自己复现（附一个容易误判的坑）
+
+早先想验证「模型有没有打进 EXE」，直接：
+
+```bash
+grep -c 'encoder_model_q4.onnx' 音转文_2.0.0_x64-setup.exe   # → 0
+```
+
+一度以为模型没进去。**那是误报**：NSIS 用 solid LZMA，连文件名都压进了数据流，
+明文扫描本来就该搜不到。拿 APK 做阳性对照可以证明扫描方法没问题 ——
+APK 里模型是 STORED 不压缩，同样的命令能搜到。
+
+正确做法是直接把包解开：
+
+```bash
+brew install p7zip
+
+# EXE（7z 会识别成 Type = Nsis）
+7z l 音转文_2.0.0_x64-setup.exe                    # 列出 17 个文件
+7z x 音转文_2.0.0_x64-setup.exe "models/*/onnx/*" -o/tmp/x
+shasum -a 256 /tmp/x/models/whisper-large-v3-turbo/onnx/*.onnx
+
+# APK（注意路径是 assets/web/…）
+7z x 音转文-2.0.0.apk "assets/web/models/*/onnx/*" -o/tmp/y
+
+# DMG（先挂载再进 app 包里找）
+hdiutil attach -readonly -nobrowse 音转文-2.0.0.dmg
+shasum -a 256 "/Volumes/音转文/音转文.app/Contents/Resources/models/whisper-large-v3-turbo/onnx/"*.onnx
+
+# MSI（复合文档，7z 直接解成带随机名的流，按体积认）
+7z x 音转文_2.0.0_x64_zh-CN.msi -o/tmp/z
+```
+
+EXE 里的完整清单长这样（17 个文件，772917269 字节原始 / 483282205 压缩）：
+
+```
+2026-09-15 17:12:30 .....     11140096   voicetype.exe
+2026-09-15 17:06:30 ....A    334147222   models/…/onnx/decoder_model_merged_q4.onnx
+2026-09-15 17:06:24 ....A    424942775   models/…/onnx/encoder_model_q4.onnx
+2026-09-15 17:06:16 ....A      2480617   models/…/tokenizer.json
+```
+
+那两个体积正好是 CI 工作流 `build-windows.yml` 里硬卡的值 ——
+对不上就构建失败，所以这也是一道自动校验，不是巧合。
 
 **关键判据**：如果模型没进去，安装包只会有 ~22 MB。实际是 461 MB，
 差 20 倍 —— 不可能有别的东西能凑出这个体积。
@@ -82,8 +122,10 @@ fc181951d1376b2e28bdd441110c3f3946016f7efa07736e0ced075b32805a37  音转文_2.0.
 ```
 
 ```bash
-# 拿到文件后自己核一遍（两行都要能对上）
-shasum -a 256 音转文-2.0.0.dmg 音转文-2.0.0.apk
+# 拿到文件后自己核一遍（四行都要能对上）
+cd release
+shasum -a 256 音转文-2.0.0.dmg 音转文-2.0.0.apk \
+               音转文_2.0.0_x64-setup.exe 音转文_2.0.0_x64_zh-CN.msi
 ```
 
 > 一个小坑：`aapt2 dump badging` 在 manifest 里写了 `WRITE_EXTERNAL_STORAGE`
@@ -347,7 +389,8 @@ powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
 ```
 
 脚本会先检查 Node / Rust / MSVC 三样东西齐不齐，缺哪样会明确告诉你怎么装。
-产物：`release\音转文-2.0.0-setup.exe` 和 `release\音转文-2.0.0.msi`
+产物（文件名由 Tauri 按版本+架构生成，注意是下划线不是连字符）：
+`release\音转文_2.0.0_x64-setup.exe` 和 `release\音转文_2.0.0_x64_zh-CN.msi`
 
 > 脚本存的是 **UTF-8 with BOM + CRLF**。这不是洁癖：
 > Windows PowerShell 5.1 读没有 BOM 的 UTF-8 脚本时，会把中文当成本地代码页解析，
