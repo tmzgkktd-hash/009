@@ -47,6 +47,31 @@ CHUNK = 16 * 1024 * 1024        # 每个分片 16MB
 RETRIES = 6
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) yzw-fetch/1.0'
 
+# ---------------------------------------------------------------------
+# ⚠️ Windows 上必须先把 stdout / stderr 切成 UTF-8，否则一打印中文就崩。
+#
+# Windows 的 Python 默认按系统 ANSI 代码页编码标准输出（简中环境是 cp936，
+# 英文环境是 cp1252）。本脚本的进度日志全是中文（"下载 xxx（318.7 MB）"），
+# 一打印就抛：
+#     UnicodeEncodeError: 'charmap' codec can't encode characters
+#
+# 后果不是"日志乱码"而已：异常发生在 log() 里，会一路冒到 main()，
+# 整个下载器直接退出 —— 表现为「有文件没下完」，而真正的报错被埋在一堆
+# 分片日志里，很难一眼看出来。CI 上就这么栽过一次（build-windows.yml 第 1 次运行）。
+#
+# macOS / Linux 本来就是 UTF-8，这里切过去是无害的空操作。
+# 用 errors='replace' 而不是默认的 'strict'：宁可某个字符显示成 ?，
+# 也别让一条日志把整个下载搞死 —— 进度信息本来就不是关键路径。
+# ---------------------------------------------------------------------
+for _stream_name in ('stdout', 'stderr'):
+    _stream = getattr(sys, _stream_name, None)
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError, OSError):
+        # 没有 reconfigure（Python < 3.7），或 stdout 被重定向成了别的对象。
+        # 这种情况下宁可继续跑，也不要在这里崩 —— 下面还有别的容错。
+        pass
+
 
 def log(msg):
     print(msg, flush=True)

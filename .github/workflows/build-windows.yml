@@ -43,6 +43,14 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 180
 
+    env:
+      # Windows 的 Python 默认按系统 ANSI 代码页（cp1252 / cp936）编码标准输出，
+      # 项目里几个脚本的日志是中文，一打印就抛 UnicodeEncodeError 把整个步骤搞挂。
+      # tools/parallel-download.py 内部已经自己切成 UTF-8 了（见该文件顶部），
+      # 这里再加一道环境变量是双保险 —— 顺带覆盖其它会打印中文的 Python 脚本。
+      # 单独设 PYTHONUTF8 不够：它管的是文件系统编码，标准输出还要靠这个。
+      PYTHONIOENCODING: utf-8
+
     steps:
       - name: 取出代码
         uses: actions/checkout@v4
