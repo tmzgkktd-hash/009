@@ -71,8 +71,11 @@ does not silently copy your transcripts to your cloud storage &mdash; that would
   when you actively choose "Save as .txt / .html" &mdash; writes one file to your device's
   Downloads folder. Android 10+ does not need this permission.</li>
 </ul>
-<p data-page-node-id="2MU8OcCj9sgPUOv2hoNLor">The <code data-page-node-id="EjD1Wj9sWfNzy61NJlHX1c">INTERNET</code> permission is kept for compatibility with the WebView's
-same-origin checks; the app itself never makes a network request for speech recognition.</p>
+<p data-page-node-id="2MU8OcCj9sgPUOv2hoNLor">The <code data-page-node-id="EjD1Wj9sWfNzy61NJlHX1c">INTERNET</code> permission is kept only for the WebView's
+same-origin checks when loading local assets. The app itself
+<strong data-page-node-id="JOjKg2sHsYy1qO0xhTtVN7">never makes any network request</strong>:
+the model and the inference runtime ship inside the package, and the settings expose
+no option that could trigger one. Everything runs on your device.</p>
 
 <h2 data-page-node-id="ojKogPFDCnN00YBis216H1">Third parties</h2>
 <p data-page-node-id="AHDXnXeYkPmMCfkEctEO9I">No third-party SDK, ad, analytics, or tracking component is bundled. The offline runtimes
