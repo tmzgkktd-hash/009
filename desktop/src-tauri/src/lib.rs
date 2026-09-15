@@ -477,13 +477,30 @@ pub fn run() {
                 None => tauri::WebviewUrl::App("index.html".into()),
             };
 
-            tauri::WebviewWindowBuilder::new(app, "main", url)
+            // ⚠️ 标题栏样式是 **macOS 专属** API，不能无条件挂在链上。
+            //
+            // `title_bar_style` / `TitleBarStyle` 只在 macOS 目标上存在
+            // （它是给 NSWindow 设 titlebar 外观的）。Windows 上
+            // WebviewWindowBuilder 根本没有这个方法，编译器直接报
+            //   error[E0599]: no method named `title_bar_style`
+            // 而且它还会「贴心地」建议一个名字相近的 `scroll_bar_style`，
+            // 按它的建议改会静默变成另一个效果 —— 千万别照做。
+            //
+            // 这也是为什么 DMG 一直编得过、Windows 却炸：本地只跑过 macOS。
+            // 修法是用 cfg 把这一句圈起来，只在苹果目标上追加。
+            let mut win = tauri::WebviewWindowBuilder::new(app, "main", url)
                 .title("音转文")
                 .inner_size(1120.0, 780.0)
                 .min_inner_size(400.0, 560.0)
-                .center()
-                .title_bar_style(tauri::TitleBarStyle::Overlay)
-                .build()?;
+                .center();
+
+            // 透明（Overlay）标题栏：让标题栏浮在内容上，macOS 原生观感。
+            #[cfg(target_os = "macos")]
+            {
+                win = win.title_bar_style(tauri::TitleBarStyle::Overlay);
+            }
+
+            win.build()?;
 
             Ok(())
         })
