@@ -223,8 +223,19 @@
      */
     const migrated = !saved || (saved.v || 1) < PREFS_VERSION;
     if (packaged) {
-      if (migrated || !saved?.whisperModel) prefs.whisperModel = 'large';
-      if (migrated || !saved?.engine) prefs.engine = 'offline';
+      // 打包版一律强制 large + offline，**不迁就用户旧偏好**。
+      //
+      // 为什么不再「尊重用户的选择」：随包只有 large v3 turbo（q4）一个模型。
+      //   · 选 tiny / base / small → whisper.js 的 ensureOnce 里
+      //     useBundled 要求 modelKey === 'large'，否则走联网下载分支，
+      //     从 hf-mirror.com 拉 43~237 MB；
+      //   · 选「云端」→ 音频交给 Web Speech API 上传解码。
+      // 两条路都会让「离线版、不联网、不上传」的承诺失实，也会直接打脸
+      // 商店里填的数据安全声明（store/data-safety.md 写的是
+      // 「App 自身不发起任何网络请求」）。旧版本存过 base / cloud 的用户
+      // 升级后会被纠正回来 —— 这是有意为之，不是 bug。
+      prefs.whisperModel = 'large';
+      prefs.engine = 'offline';
     }
     prefs.v = PREFS_VERSION;
 
@@ -734,7 +745,11 @@
 
     try {
       const r = await window.VoiceTypeOffline.ensureModel({
-        model: prefs.whisperModel,
+        // 打包版钉死随包档位。这是**最后一道**兜底：
+        // 界面层（18b 段）已经摘掉了其余选项，loadPrefs 也已经纠正过偏好，
+        // 但凡有一层漏了（旧缓存、手改 localStorage、别的入口调用），
+        // 这里再拦一次 —— 绝不让打包版走进联网下载分支。
+        model: packaged ? 'large' : prefs.whisperModel,
         host: prefs.whisperHost,
         onProgress: (e) => {
           const mb = (n) => (n / 1048576).toFixed(1);
@@ -1473,6 +1488,31 @@ ${rows}
   if (!packaged && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  /* ---------------------------------------------------------
+   * 18b. 打包版的离线约束：把联网入口从界面上摘掉
+   *
+   * 界面上留着一个「点了就会联网」的选项，等于把离线版的承诺交给用户
+   * 去不小心破坏。打包版里这两个开关其实没有可选项：
+   *   · 模型只有随包的 large（q4），其余档位都得联网下载；
+   *   · 引擎只有离线，「云端」会把音频交给 Web Speech API 上传解码。
+   * 所以直接不给。
+   *
+   * 注意这是**第二道**防线，只管界面。值那一层的兜底在 loadPrefs() 里
+   * （防旧偏好、防 localStorage 被手改、防初始化顺序变化）。
+   * ------------------------------------------------------- */
+  if (packaged) {
+    if (el.setModel) {
+      el.setModel.querySelectorAll('option').forEach((o) => {
+        if (o.value !== 'large') o.remove();
+      });
+      el.setModel.disabled = true;
+      el.setModel.title = '离线版内置 Large v3 Turbo（已随包，不需要联网）';
+    }
+    $$('#engineSeg button').forEach((b) => {
+      if (b.dataset.engine === 'cloud') b.remove();
     });
   }
 
