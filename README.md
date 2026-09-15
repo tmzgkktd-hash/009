@@ -18,11 +18,27 @@ q4 代价是体积从 537 MB 涨到 726 MB，换来的是**任何设备都真离
 | --- | --- | --- | --- |
 | `release/音转文-2.0.0.apk` | Android | 760.33 MB | 本机 `android/build-apk.sh` |
 | `release/音转文-2.0.0.dmg` | macOS | 518.17 MB | 本机 `desktop/build-mac.sh` |
-| `release/音转文-2.0.0-setup.exe` | Windows | 约 740 MB | 你的 Windows 机器上跑 `desktop/build-windows.ps1` |
+| `音转文_2.0.0_x64-setup.exe` | Windows | **461.05 MB** | 云端构建实测产出（NSIS 安装包，双击即装） |
+| `音转文_2.0.0_x64_zh-CN.msi` | Windows | **517.29 MB** | 同上（MSI 包，企业分发 / 域控推送用） |
 | `release/音转文-2.0.0.ipa` | iOS | 约 740 MB | GitHub Actions 云端构建，见 `.github/workflows/build-ios.yml` |
+
+Windows 的两个包**两条路都能出**，任选：
+
+1. **云端**（推荐，不用装任何工具链）：推 GitHub → Actions →「构建 Windows 版」
+   → Run workflow，约 30 分钟后从 Artifacts 下载 `音转文-windows.zip`。
+2. **本机**：在你的 Windows 机器上跑 `desktop/build-windows.ps1`。
 
 > DMG 比 APK 小一些，是因为 DMG 用 zlib 把 726 MB 的模型压过一道（约 480 MB），
 > APK 里的模型是原样存储的。
+> NSIS 的 `.exe` 又比它们都小，因为安装程序本身对内容做了一次 LZMA 压缩。
+
+> **注意**：Tauri 产出的文件名带下划线和版本后缀
+> （`音转文_2.0.0_x64-setup.exe`），与早期文档里写的
+> `音转文-2.0.0-setup.exe` 不同。以实际产物为准。
+
+> Windows 这条链最初是「只在 macOS 上验过」，推到 CI 上实跑才暴露出
+> 三个只影响 Windows 的 bug（Python 中文日志崩溃、`shasum` 命令不存在、
+> `title_bar_style` 是 macOS 专属 API）。都已修复，详见下面「运行验证」。
 
 > 体积几乎全部来自内置的 whisper-large-v3-turbo（q4 量化，726 MB）。
 > 这是「完全离线 + 最高识别质量」这个组合的必然代价 —— 想瘦身就得改成
@@ -33,6 +49,8 @@ q4 代价是体积从 537 MB 涨到 726 MB，换来的是**任何设备都真离
 ```
 1791cc2d183b99e8cf4ddaa2b30bab7b27987229f17800cd795c559b2acf3b95  音转文-2.0.0.dmg
 b7e864e1f67c7ea08fc1b9ebe7fc6da7213126c8e47b6caeb143ba6eb7c4ba40  音转文-2.0.0.apk
+fc181951d1376b2e28bdd441110c3f3946016f7efa07736e0ced075b32805a37  音转文_2.0.0_x64-setup.exe
+702d1e1b508706309c04b9af184bf3333adde79fe099c4a4f3030bcbf86d681a  音转文_2.0.0_x64_zh-CN.msi
 ```
 
 ```bash
