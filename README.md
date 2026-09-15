@@ -295,6 +295,46 @@ MediaStore 拿到真实名字，保证 toast 里报的路径是真存在的那�
 
 ---
 
+## 离线保证，以及修掉的一个真缺陷
+
+「离线版」不是打包时把模型塞进去就完了 —— 还得保证**用户点不出联网**。
+
+2.0.0 早期版本这里有个洞：打包版只随包了 `whisper-large-v3-turbo`(q4) 一个模型，
+设置界面却把 4 个档位和「云端」引擎全摆着，两者都没按 `packaged` 做 gate。
+
+| 用户操作 | 后果 |
+| --- | --- |
+| 选 Tiny / Base / Small | `ensureOnce` 里 `useBundled = !!base && modelKey === 'large'` 为假 → `remoteHost` 设成 `hf-mirror.com`，联网拉 43~237 MB |
+| 选「云端」引擎 | 音频交给 Web Speech API 上传解码（macOS 的 WKWebView 带这个 API） |
+
+麻烦的地方在于，`AndroidManifest.xml` 里确实声明了 `INTERNET`，
+而 `store/data-safety.md` 白纸黑字写着「App 自身不发起任何网络请求」——
+**在这些路径下这句话是假的**。商店的数据安全问卷一旦被抽查到，属于声明失实。
+
+默认值本身一直是安全的（`large` + `offline`），要踩中得手动改设置。
+但既然写了那个承诺，就得让它成立。修法是三道闸，任一生效即可：
+
+1. **界面层**（`app.js` §18b）：打包版把 `#setModel` 的非 large 选项 remove、
+   整个 select `disabled`，把 `#engineSeg` 里的「云端」按钮 remove。不给可选项。
+2. **偏好层**（`loadPrefs`）：打包版一律 `whisperModel='large'`、`engine='offline'`。
+   不再迁就旧偏好 —— 旧版存过 base/cloud 的用户升级后被纠正回来，这是有意的。
+3. **加载层**（`loadOfflineModel`）：`ensureModel({ model: packaged ? 'large' : ... })`。
+   防旧缓存、手改 localStorage、其它入口调用。
+
+**怎么验的**：headless Chrome `--dump-dom`，给 `index.html` 注入伪 `window.__TAURI__`
+让 `packaged` 为真，与未改动的 `index.html` 作对照：
+
+| | 模型下拉选项 | 云端按钮 | select |
+| --- | --- | --- | --- |
+| 浏览器版（对照） | tiny / base / small / large | 存在 | 可选 |
+| 打包版 | **large** | **已移除** | `disabled` |
+
+对照通过很重要 —— 说明浏览器版没被误伤，那条路径本来就该能联网。
+
+> 已产出的四端安装包**还是修复前的**，重新构建才会带上这个改动。
+
+---
+
 ## 这次新增 / 改动的东西
 
 | | 说明 |
