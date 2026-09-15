@@ -106,8 +106,42 @@ fi
 echo "可用源：${BASES[*]}"
 echo
 
+# ---- 找一把能算 SHA-256 的尺子 ----
+#
+# ⚠️ 不能写死 `shasum`：那是 macOS 上的 Perl 脚本，
+#    Windows 的 Git Bash 里压根没这个命令。
+#    实测 CI 上报 `shasum: command not found`，
+#    于是下面的校验函数返回空串，每个文件都被判成「哈希不符」——
+#    可实际上文件早就下对了（Python 下载器内部自己校验过，日志里
+#    明明白白打了「SHA-256 通过」「✓ 完成 xxx.onnx」）。
+#    就因为最后这次总校验拿不到哈希，整个脚本失败退出，
+#    后面所有步骤全部 skipped。典型的「活干完了，卡在签字环节」。
+#
+# 按可用性依次降级：shasum（macOS）→ sha256sum（Linux / Git for Windows）
+# → python（最后兜底）。三者算出来的都是 64 位小写十六进制，可直接字符串比较。
+SHA256_CMD=""
+for c in shasum sha256sum; do
+  if command -v "$c" >/dev/null 2>&1; then SHA256_CMD="$c"; break; fi
+done
+if [ -z "$SHA256_CMD" ]; then
+  for p in python3 python; do
+    if command -v "$p" >/dev/null 2>&1; then SHA256_CMD="py:$p"; break; fi
+  done
+fi
+if [ -z "$SHA256_CMD" ]; then
+  echo "找不到任何能算 SHA-256 的工具（shasum / sha256sum / python 都没有）。"
+  echo "没有校验就没法确认模型是完整的，这里停下来比较稳妥。"
+  exit 1
+fi
+
 sha256_of() {
-  [ -f "$1" ] && shasum -a 256 "$1" | awk '{print $1}' || echo ""
+  [ -f "$1" ] || { echo ""; return; }
+  case "$SHA256_CMD" in
+    shasum)    shasum -a 256 "$1" | awk '{print $1}' ;;
+    sha256sum) sha256sum "$1" | awk '{print $1}' ;;
+    py:*)      "${SHA256_CMD#py:}" -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1" 2>/dev/null || echo "" ;;
+    *)         echo "" ;;
+  esac
 }
 
 fail=0
