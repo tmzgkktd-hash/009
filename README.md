@@ -16,17 +16,22 @@ q4 代价是体积从 537 MB 涨到 726 MB，换来的是**任何设备都真离
 
 | 文件 | 平台 | 体积（实测） | 怎么来的 |
 | --- | --- | --- | --- |
-| `release/音转文-2.0.0.apk` | Android | 760.33 MB | 本机 `android/build-apk.sh` |
-| `release/音转文-2.0.0.dmg` | macOS | 518.17 MB | 本机 `desktop/build-mac.sh` |
-| `音转文_2.0.0_x64-setup.exe` | Windows | **461.05 MB** | 云端构建实测产出（NSIS 安装包，双击即装） |
-| `音转文_2.0.0_x64_zh-CN.msi` | Windows | **517.29 MB** | 同上（MSI 包，企业分发 / 域控推送用） |
-| `release/音转文-2.0.0.ipa` | iOS | 约 740 MB | GitHub Actions 云端构建，见 `.github/workflows/build-ios.yml` |
+| `release/音转文-2.0.0.apk` | Android | **760.34 MB** | 本机 `android/build-apk.sh` |
+| `release/音转文-2.0.0.dmg` | macOS | **518.17 MB** | 本机 `desktop/build-mac.sh` |
+| `release/音转文_2.0.0_x64-setup.exe` | Windows | 约 461 MB | 云端构建（NSIS，双击即装） |
+| `release/音转文-2.0.0.ipa` | iOS | 约 740 MB | ⬜ 待 Apple 证书，见 `.github/workflows/build-ios.yml` |
 
-Windows 的两个包**两条路都能出**，任选：
+> 上面三个都是**带上「离线约束修复」重新构建**的版本（2026-09-15 18:54 前后出）。
+> 修复前的旧包没删，挪在 `release/_修复前-2.0.0/`，确认新版没问题后可以自行删除。
+
+Windows 只出 NSIS 这一个安装包（用户分发够用了）。**两种方式任选**：
 
 1. **云端**（推荐，不用装任何工具链）：推 GitHub → Actions →「构建 Windows 版」
-   → Run workflow，约 30 分钟后从 Artifacts 下载 `音转文-windows.zip`。
+   → Run workflow，`bundles` 选 `nsis`，约 40~60 分钟后从 Artifacts 下载。
 2. **本机**：在你的 Windows 机器上跑 `desktop/build-windows.ps1`。
+
+> 需要 MSI（企业分发 / 域控推送）的话，把 `bundles` 选成 `msi` 或 `nsis,msi` 再跑一次即可，
+> 工作流本来就支持，只是默认不产。
 
 > DMG 比 APK 小一些，是因为 DMG 用 zlib 把 726 MB 的模型压过一道（约 480 MB），
 > APK 里的模型是原样存储的。
@@ -115,18 +120,20 @@ EXE 里的完整清单长这样（17 个文件，772917269 字节原始 / 483282
 ### 校验值（本机实测）
 
 ```
-1791cc2d183b99e8cf4ddaa2b30bab7b27987229f17800cd795c559b2acf3b95  音转文-2.0.0.dmg
-b7e864e1f67c7ea08fc1b9ebe7fc6da7213126c8e47b6caeb143ba6eb7c4ba40  音转文-2.0.0.apk
-fc181951d1376b2e28bdd441110c3f3946016f7efa07736e0ced075b32805a37  音转文_2.0.0_x64-setup.exe
-702d1e1b508706309c04b9af184bf3333adde79fe099c4a4f3030bcbf86d681a  音转文_2.0.0_x64_zh-CN.msi
+f32e24e46ea8dfe852e7bb7a48f5f13cc3928c5821ce2aa4765dcf359505786d  音转文-2.0.0.dmg
+ac41f90debaac5cc0af063d1a09a74475cb64869dbcb91336e8051c24eb240fe  音转文-2.0.0.apk
+（Windows .exe 的校验值在云端构建完成后填入）
 ```
 
 ```bash
-# 拿到文件后自己核一遍（四行都要能对上）
+# 拿到文件后自己核一遍
 cd release
-shasum -a 256 音转文-2.0.0.dmg 音转文-2.0.0.apk \
-               音转文_2.0.0_x64-setup.exe 音转文_2.0.0_x64_zh-CN.msi
+shasum -a 256 音转文-2.0.0.dmg 音转文-2.0.0.apk 音转文_2.0.0_x64-setup.exe
 ```
+
+> 这三个值对应的是**重新构建后**的版本。修复前的旧值（`dmg 1791cc2d…`、
+> `apk b7e864e1…`、`exe fc181951…`）已经作废，仅存档在
+> `release/_修复前-2.0.0/` 里供对照。
 
 > 一个小坑：`aapt2 dump badging` 在 manifest 里写了 `WRITE_EXTERNAL_STORAGE`
 > 时会**额外**打一行 `READ_EXTERNAL_STORAGE maxSdkVersion=28` 出来，看着像多要了一个权限。
@@ -331,7 +338,15 @@ MediaStore 拿到真实名字，保证 toast 里报的路径是真存在的那�
 
 对照通过很重要 —— 说明浏览器版没被误伤，那条路径本来就该能联网。
 
-> 已产出的四端安装包**还是修复前的**，重新构建才会带上这个改动。
+> **重新构建后的验证**（2026-09-15）：
+> APK 可以直接验到底 —— 用 7z 把 `assets/web/js/app.js` 解出来，
+> 其 SHA-256 与仓库源文件**完全相同**（`972c84a0…`），三处标记都在。
+> DMG 做不到这一步：Tauri 把前端**压缩后嵌进二进制**（10.9 MB 的二进制
+> 装不下 24 MB 前端），抠不出来逐字节比对。能确认的是
+> `build-mac.sh` 先 `sync-app.mjs` 再编译，且新旧二进制哈希不同
+> （旧 `13058112…` → 新 `fb9d8cce…`），说明改动确实被编译进去了。
+> 顺带一个交叉印证：Tauri 嵌进 DMG 的那份 `app.js`（`972c84a0…`）
+> 与从 APK 里解出的那份**是同一个文件**。
 
 ---
 
