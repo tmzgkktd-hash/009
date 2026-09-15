@@ -1,0 +1,78 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ---------------------------------------------------------------
+// 音转文 · 离线版
+//
+// 和上一版的区别：不再有任何"要打包的网址"。
+// 页面、离线推理运行时、540MB 模型全部塞进 assets/web/，
+// 由 MainActivity 里的虚拟 https 源在本机提供。
+//
+// assets/web/ 由 scripts/sync-assets.mjs 从项目根目录同步过来，
+// 不要在 assets/ 里手改文件 —— 下次同步会被覆盖。
+// ---------------------------------------------------------------
+
+android {
+    namespace 'com.voicetype.app'
+
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.voicetype.app"
+        minSdk 23
+        targetSdk 36
+        // 2.0.0：完全离线（内置 large-v3-turbo 模型 + 本地推理运行时），
+        //        中文名「音转文」，新增 TXT / HTML 导出到本地。
+        versionCode 3
+        versionName "2.0.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../voicetype-release.keystore')
+            storePassword 'voicetype-2026'
+            keyAlias 'voicetype'
+            keyPassword 'voicetype-2026'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    androidResources {
+        // 关键：默认情况下 aapt 会压缩 assets 里的未知类型文件。
+        // .onnx 是已经量化过的数据，再压一遍基本压不动（<2%），
+        // 却会让每次读取都要现场解压 350MB —— 手机上要等十几秒。
+        // 声明为不压缩后，文件以 STORED 方式直接躺在 APK 里，
+        // AssetManager 可以零拷贝地读，加载快一个数量级。
+        // .wasm 同理（26MB 的推理内核）。
+        noCompress += ['onnx', 'wasm']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // 540MB 的 assets 会让 APK 很大，构建时禁用一些没必要的产物
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+}
+
+// 纯框架实现（android.webkit.*），不需要任何第三方依赖。
+// 上一版依赖的 com.google.androidbrowserhelper 是为了走 TWA 打开线上网页，
+// 离线版没有线上网页，自然也不需要它 —— 顺带把之前那个闪退的隐患彻底移除。
+dependencies {
+}

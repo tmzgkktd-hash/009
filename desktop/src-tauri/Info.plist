@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  这个文件会被 Tauri 合并进最终 .app 的 Contents/Info.plist。
+  （Tauri 会自动查找与 tauri.conf.json 同目录的 Info.plist。）
+
+  ① 为什么必须有 NSMicrophoneUsageDescription：
+    这是个录音软件，但 macOS 的 TCC 要求任何访问麦克风的 App 都必须在
+    Info.plist 里声明用途。缺了它，进程在第一次访问麦克风时会被系统
+    **直接终止**（不是弹窗拒绝，是崩溃），而且日志里只有一句
+    「attempted to access privacy-sensitive data without a usage description」。
+    实测构建出的包里原本没有这一项。
+
+  ② 为什么要有 NSAllowsLocalNetworking：
+    页面不是从 tauri://localhost 加载的，而是从 http://127.0.0.1:<随机端口>
+    （原因见 src/lib.rs 顶部 —— 自定义协议在 WKWebView 里不是安全上下文，
+    录音和跨源隔离都会坏掉）。而 App Transport Security 从
+    **macOS 14 / iOS 17 起不再默认放行 IP 地址**，按 Apple 文档需要用
+    NSAllowsLocalNetworking 打开本机网络。
+
+    macOS 上实测目前没被拦（这台是 macOS 15），但 Apple 的原文明确建议：
+    「consider setting NSAllowsLocalNetworking to YES as a declaration of
+    intent, if appropriate, even if you don't support older OS versions」。
+    我们确实依赖环回地址，所以照做。
+
+    注意用的是 NSAllowsLocalNetworking 而不是 NSAllowsArbitraryLoads ——
+    后者是完全绕过 ATS，范围太大，审核也更容易被问；
+    前者只放开「非限定域名 / .local / IP 地址」，正对得上我们的用法。
+-->
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>音转文需要使用麦克风来录制声音并在本机完成语音转文字。录音只在本机处理，不会上传。</string>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+</dict>
+</plist>
+

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 桌面图标下面显示的名字。用户已确认中文名就是「音转文」。 -->
+    <string name="app_name">音转文</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 Web 端主题色一致：渐变起点 #4F46E5 -->
+    <color name="colorPrimary">#4F46E5</color>
+    <color name="colorPrimaryDark">#3F37C9</color>
+    <color name="backgroundColor">#FFFFFF</color>
+    <color name="navigationColor">#FFFFFF</color>
+    <color name="navigationDividerColor">#00000000</color>
+</resources>

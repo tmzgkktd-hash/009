@@ -1,0 +1,14 @@
+{
+  "name": "yzw-vendor-build",
+  "private": true,
+  "version": "1.0.0",
+  "description": "把 transformers.js 运行时与 onnxruntime 的 WASM 打成可离线加载的本地文件",
+  "type": "module",
+  "scripts": {
+    "build": "node build-vendor.mjs"
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "4.2.0",
+    "esbuild": "^0.25.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "音转文桌面端权限。页面由本机 http://127.0.0.1:<随机端口> 提供（见 src/lib.rs 顶部说明），所以必须按「远程来源」放行，否则 window.__TAURI__ 存在但所有 invoke 都会被来源检查拒掉。注意 remote.urls 只解决「哪个来源可用」，命令本身还要在 permissions/voice-type.toml 里声明 —— 两件事缺一不可，实测只写这边仍然报 not allowed by ACL。",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*"]
+  },
+  "permissions": [
+    "core:default",
+    "allow-model-base-url",
+    "allow-save-text-file"
+  ]
+}

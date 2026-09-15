@@ -1,0 +1,141 @@
+name: 构建 Windows 版
+
+# =====================================================================
+# 音转文 · Windows 云端构建
+#
+# 为什么走云端：
+#   打 .exe / .msi 需要 MSVC 工具链 + Windows SDK，NSIS / WiX 这两个
+#   打包器本身也只有 Windows 版 —— 在 macOS 上交叉编译不了，
+#   硬编出来的包也没法验证。GitHub 的 Windows 机器是现成的。
+#
+# 使用前提（仓库根目录就是 voicetype/ 这一层）：
+#   1. 把项目推到一个 GitHub 仓库
+#   2. Actions →「构建 Windows 版」→ Run workflow
+#   3. 跑完在 Artifacts 里下载 音转文-windows.zip
+#
+# 不需要任何 Secrets（构建本身不签名）。
+# 上架微软商店要 EV 代码签名证书，那是另一回事，见 README / store/GO-LIVE.md。
+#
+# 产物：
+#   音转文_<版本>_x64-setup.exe   ← NSIS 安装包，双击即装，普通用户用这个
+#   音转文_<版本>_x64_en-US.msi   ← MSI 包，企业分发 / 域控推送用
+# =====================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundles:
+        description: '打包格式'
+        required: true
+        default: 'nsis,msi'
+        type: choice
+        options:
+          - nsis,msi
+          - nsis
+          - msi
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  windows:
+    name: 构建 .exe / .msi
+    runs-on: windows-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: 取出代码
+        uses: actions/checkout@v4
+
+      - name: 装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 装 Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 726MB 的模型每次从 HuggingFace 下会拖慢构建，也给人添流量。
+      # 用固定 key 缓存住；key 里的 7e64b20d 是 encoder_model_q4.onnx 的
+      # SHA-256 前 8 位 —— 换量化格式时这个 key 必须跟着换，
+      # 否则会命中旧模型的缓存，打出一个「体积对但内容错」的包。
+      - name: 缓存离线模型
+        uses: actions/cache@v4
+        with:
+          path: models/whisper-large-v3-turbo
+          key: whisper-large-v3-turbo-q4-7e64b20d
+
+      # 模型下载脚本是 bash（用了 bash 的 noclobber 做文件锁），
+      # Windows runner 上有 Git Bash，指定 shell 即可。
+      - name: 下载离线模型
+        shell: bash
+        run: |
+          chmod +x fetch-models.sh
+          ./fetch-models.sh
+
+      # 体积校验：半截的模型打进去，装出来就是个一打开就报错的包。
+      # 缓存命中的情况下也要查，避免缓存里存的是上次中断的残件。
+      - name: 校验模型体积
+        shell: bash
+        run: |
+          ENC="models/whisper-large-v3-turbo/onnx/encoder_model_q4.onnx"
+          DEC="models/whisper-large-v3-turbo/onnx/decoder_model_merged_q4.onnx"
+          check() {
+            local f="$1" want="$2"
+            if [ ! -f "$f" ]; then echo "缺少 $f"; exit 1; fi
+            local got; got=$(wc -c < "$f" | tr -d ' ')
+            local diff=$(( got - want )); [ $diff -lt 0 ] && diff=$(( -diff ))
+            if [ "$diff" -gt 1000000 ]; then
+              echo "体积不对：$f 期望 $want 实际 $got"; exit 1
+            fi
+            echo "  ✓ $(basename "$f") $got 字节"
+          }
+          echo "模型体积："
+          check "$ENC" 424942775
+          check "$DEC" 334147222
+
+      - name: 构建离线推理运行时
+        shell: bash
+        run: |
+          cd tools
+          npm install --no-audit --no-fund
+          node build-vendor.mjs
+
+      - name: 安装桌面端依赖
+        shell: bash
+        run: |
+          cd desktop
+          npm install --no-audit --no-fund
+
+      - name: 同步网页资源进打包目录
+        shell: bash
+        run: |
+          cd desktop
+          node scripts/sync-app.mjs
+
+      - name: 编译并打包
+        shell: bash
+        run: |
+          cd desktop
+          BUNDLES="${{ github.event.inputs.bundles || 'nsis,msi' }}"
+          echo "打包格式：$BUNDLES"
+          npx tauri build --bundles "$BUNDLES"
+
+      - name: 收集产物
+        shell: bash
+        run: |
+          mkdir -p release
+          find desktop/src-tauri/target/release/bundle -type f \
+            \( -name '*.exe' -o -name '*.msi' \) -print -exec cp {} release/ \;
+          echo "--- 产物 ---"
+          ls -la release/ || true
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 音转文-windows
+          path: |
+            release/*.exe
+            release/*.msi
+          if-no-files-found: error
+          retention-days: 30

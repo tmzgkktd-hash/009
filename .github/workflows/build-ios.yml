@@ -1,0 +1,138 @@
+name: 构建 iOS 版
+
+# =====================================================================
+# 音转文 · iOS 云端构建
+#
+# 为什么必须走云端：打 .ipa 需要 Xcode + iOS SDK + 苹果签名，
+# 这三样都只能在 macOS 上做，而且签名还需要付费开发者账号。
+# 这个流水线在 GitHub 的 macOS 机器上跑完整流程，产出可上传
+# App Store Connect / TestFlight 的 .ipa。
+#
+# 使用前提（仓库根目录就是 voicetype/ 这一层）：
+#   1. 把项目推到一个 GitHub 仓库
+#   2. 在仓库 Settings → Secrets and variables → Actions 里配置下面的密钥
+#   3. 在 Actions 页面手动触发，或者推一个 v* 的 tag
+#
+# 需要的 Secrets（不配也能跑，只是产出未签名的包，装不到真机上）：
+#   APPLE_CERTIFICATE            Apple Distribution 证书 .p12 的 base64
+#   APPLE_CERTIFICATE_PASSWORD   导出 .p12 时设的密码
+#   APPLE_SIGNING_IDENTITY       形如 "Apple Distribution: 你的名字 (TEAMID)"
+#   APPLE_ID                     你的 Apple ID 邮箱
+#   APPLE_PASSWORD               App 专用密码（不是登录密码！）
+#   APPLE_TEAM_ID                10 位团队 ID
+#
+# 生成 base64 证书：
+#   base64 -i Certificates.p12 | pbcopy
+# =====================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: '导出方式'
+        required: true
+        default: 'app-store-connect'
+        type: choice
+        options:
+          - app-store-connect
+          - ad-hoc
+          - development
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  ios:
+    name: 构建 .ipa
+    runs-on: macos-14
+    timeout-minutes: 90
+
+    env:
+      # 让 Tauri / cargo 都拿到签名信息
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - name: 取出代码
+        uses: actions/checkout@v4
+
+      - name: 装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      # 724MB 的模型每次都从 HuggingFace 下会很慢，而且给人家添流量。
+      # 用哈希做 key 缓存住，命中后是秒级恢复。
+      # key 里的 7e64b20d 是 encoder_model_q4.onnx 的 SHA-256 前 8 位 ——
+      # 换量化格式时这个 key 必须跟着换，否则会命中旧模型的缓存。
+      - name: 缓存离线模型
+        uses: actions/cache@v4
+        with:
+          path: models/whisper-large-v3-turbo
+          key: whisper-large-v3-turbo-q4-7e64b20d
+
+      - name: 下载离线模型
+        run: |
+          chmod +x fetch-models.sh
+          ./fetch-models.sh
+
+      - name: 构建离线推理运行时
+        run: |
+          cd tools
+          npm install --no-audit --no-fund
+          node build-vendor.mjs
+
+      - name: 安装桌面端依赖
+        run: |
+          cd desktop
+          npm install --no-audit --no-fund
+
+      - name: 同步网页资源进打包目录
+        run: |
+          cd desktop
+          node scripts/sync-app.mjs
+
+      # tauri ios init 是幂等的：第一次生成 Xcode 工程，之后直接复用。
+      # 用 --ci 跳过交互式提问。
+      - name: 生成 iOS 工程
+        run: |
+          cd desktop
+          npx tauri ios init --ci || npx tauri ios init
+
+      # 麦克风权限描述、中文显示名、加密声明 —— 缺一个都会被审核或系统拦下
+      - name: 修补 Info.plist
+        run: |
+          cd desktop
+          chmod +x scripts/patch-ios.sh
+          ./scripts/patch-ios.sh
+
+      - name: 编译并打包
+        run: |
+          cd desktop
+          EXPORT_METHOD="${{ github.event.inputs.export_method || 'app-store-connect' }}"
+          echo "导出方式：$EXPORT_METHOD"
+          npx tauri ios build --export-method "$EXPORT_METHOD"
+
+      - name: 收集产物
+        run: |
+          mkdir -p release
+          # Tauri 把 ipa 放在 target/<triple>/release/bundle/ios/ 下
+          find desktop/src-tauri/target -name '*.ipa' -print -exec cp {} release/ \;
+          ls -la release/ || true
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 音转文-ios
+          path: release/*.ipa
+          if-no-files-found: warn
+          retention-days: 30

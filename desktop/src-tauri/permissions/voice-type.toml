@@ -1,0 +1,44 @@
+# 音转文自带命令的权限声明。
+#
+# ---------------------------------------------------------------------------
+# 为什么必须有这个文件
+#
+# 页面由本机 http://127.0.0.1:<随机端口> 提供（原因见 src/lib.rs 顶部），
+# 在 Tauri 眼里这是**远程来源** —— is_local_url() 只认 tauri:// 协议和自己
+# 注册的自定义协议，http://127.0.0.1 不在其中。
+#
+# 而 webview/mod.rs 里那道闸是：
+#
+#     if (plugin_command.is_some() || has_app_acl_manifest || !is_local)
+#         && invoke.acl.is_none() { reject("Command {cmd} not allowed by ACL") }
+#
+# 注意中间那个 `!is_local`：来源一旦是远程，**连应用自己的命令也要过 ACL**。
+# 而在没有 permissions/ 目录时，应用清单（APP_ACL_KEY = "__app-acl__"）根本
+# 不存在，allowed_commands 里也就没有这两个命令名，resolve_access() 直接
+# 返回 None，于是所有 invoke 一律被拒。
+#
+# 两件事缺一不可，别只做一半：
+#   1) 这里声明「哪些命令可以被授予」；
+#   2) capabilities/default.json 里声明「哪个来源可以拿到这套授权」。
+# 实测只做第 2 步（只写 remote.urls）仍然报 not allowed by ACL。
+#
+# ---------------------------------------------------------------------------
+# 为什么标识符不带插件名前缀
+#
+# capability.rs 的文档写明：「直接实现在应用自身的命令，权限名不需要
+# 插件名前缀」。对应 acl/build.rs 里 `plugin_name == APP_ACL_KEY` 的分支，
+# 此时 allowed_commands 的键就是命令原名（model_base_url / save_text_file），
+# 而不是 plugin:xxx|yyy 那种形式。
+#
+# 写错了不用担心静默失败：tauri-build 的 validate_capabilities 会在构建期
+# 报「permission not found」，构建直接失败。
+
+[[permission]]
+identifier = "allow-model-base-url"
+description = "读取内置离线模型的本地服务地址（命令 model_base_url）。"
+commands.allow = ["model_base_url"]
+
+[[permission]]
+identifier = "allow-save-text-file"
+description = "弹出原生「另存为」对话框，把转录文本写入用户选择的文件（命令 save_text_file）。"
+commands.allow = ["save_text_file"]

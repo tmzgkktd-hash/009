@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 离线版不需要联网。保留 INTERNET 只为两件事：
+         1. 万一用户手动把模型源切回云端（设置里的"云端模型"），不至于连不上；
+         2. WebView 内核对 https:// 虚拟源的判定更一致。
+         真正跑识别时全程不产生任何网络请求。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 9 及以下写公共「下载」目录才需要；10 起走 MediaStore 免权限，
+         所以用 maxSdkVersion 把权限范围收窄，不在新系统上多要一个敏感权限。 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
+        android:largeHeap="true"
+        android:hardwareAccelerated="true"
+        android:theme="@style/AppTheme">
+
+        <!-- allowBackup 必须是 false，这不是随手写的默认值。
+             开着它，Android 的自动备份会把应用数据（含 WebView 的
+             localStorage —— 转录历史和偏好就存在那里）同步到用户的云端网盘。
+             对一个卖点就是「完全离线、数据不出本机」的应用来说，这是自相矛盾的：
+             用户以为文本只在自己手机里，实际却被传了出去。
+             关掉之后，Google Play 的「数据安全」表单也能如实填「不收集」。
+
+             另外它也顺带避免一类怪问题：换机恢复时把旧版本的 WebView 数据
+             灌进新版本，历史记录和设置可能对不上。 -->
+
+        <!-- largeHeap：540MB 的模型要读进内存再交给 WASM，
+             不申请大堆的话中低端机上很容易在加载阶段被 OOM 杀掉。
+             这是"内置大模型"这个选择的必要代价。 -->
+
+        <!-- 只有一个 Activity。不再有 TWA 的 DelegationService、
+             asset_statements、App Links 验证 —— 那些都是"打开线上网页"才需要的东西，
+             离线版全部去掉，顺带把包也瘦了一圈。 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@style/AppTheme.Launcher">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>

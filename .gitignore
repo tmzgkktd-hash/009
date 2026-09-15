@@ -1,0 +1,62 @@
+# ------------------------------------------------------------------
+# 音转文 · 忽略规则
+#
+# 原则：**构建产物和大型二进制不进仓库**。
+# 仓库里只留源码、脚本、配置 —— 模型和运行时都在 CI 上现生成 / 现下载。
+#
+# 为什么这么重要：
+#   models/ 727MB + release/ 1.3GB + 两个 build 目录各 4.5GB，
+#   全推上去就是 10GB+，GitHub 单文件硬上限 100MB 会直接拒收，
+#   就算用 git-lfs 也会瞬间吃光配额。
+# ------------------------------------------------------------------
+
+# ---- 构建产物（体积最大的三块）----
+release/
+android/app/build/
+desktop/src-tauri/target/
+
+# Gradle 自己的缓存与报告目录。
+# 注意它有两个：app/build/（产物，上面已排）和 android/build/、android/.gradle/
+# （缓存与报告）。后者不含源码，但会混进一堆 .bin / .lock，
+# 提交上去只会污染 diff，对重建毫无帮助。
+android/build/
+android/.gradle/
+
+# ---- 离线模型与推理运行时 ----
+# 都是 CI 上现生成的：
+#   models/  ← fetch-models.sh 下载（已有 SHA-256 校验）
+#   vendor/  ← tools/build-vendor.mjs 生成
+models/
+vendor/
+
+# ---- 依赖 ----
+node_modules/
+**/node_modules/
+
+# ---- 前端构建产物 ----
+site/
+
+# ---- 签名密钥：绝不能进仓库 ----
+#
+# 尤其是**公开**仓库：.keystore 一旦公开，别人就能用你的身份签出
+# 同包名的恶意 APK。私钥丢了没法补，只能换包名重发 —— 代价极大。
+#
+# 需要它时（比如以后加安卓 CI）请走仓库 Secrets，不要提交文件。
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+
+# ---- 本地配置 ----
+local.properties
+.DS_Store
+Thumbs.db
+
+# ---- 日志与临时文件 ----
+*.log
+*.tmp
+*.part
+*.part.*
+.progress
+.fetch-models.lock
+/apksigner-out.txt

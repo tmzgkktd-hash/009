@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#5b5bd6" />
+<title>音转文 · 隐私政策</title>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --bg:#fff; --line:#e6e6e6; --accent:#5b5bd6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8e8e8; --muted:#9a9a9a; --bg:#161618; --line:#2c2c2e; --accent:#9b9bf6; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font: 16px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+         "Microsoft YaHei", sans-serif; color: var(--fg); background: var(--bg);
+         max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 28px; margin: 8px 0 4px; letter-spacing: 0.5px; }
+  h2 { font-size: 19px; margin: 36px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+  p { margin: 10px 0; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .meta { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px;
+           background: var(--accent); color: #fff; font-size: 12px;
+           vertical-align: 2px; margin-left: 6px; }
+  code, .mono { font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                background: rgba(0,0,0,.04); padding: 1px 6px; border-radius: 3px; }
+  @media (prefers-color-scheme: dark) { code, .mono { background: rgba(255,255,255,.08); } }
+  .lang-switch { float: right; font-size: 13px; color: var(--muted); }
+  .lang-switch a { color: inherit; text-decoration: underline; margin-left: 8px; }
+</style>
+</head>
+<body>
+<span class="lang-switch">
+  <a href="privacy-policy-en.html">English</a>
+</span>
+
+<h1>音转文 · 隐私政策<span class="badge">离线</span></h1>
+<p class="meta">生效日期：2026 年 9 月 15 日　 · 　最近更新：2026 年 9 月 15 日</p>
+
+<h2>一句话总结</h2>
+<p>音转文是<strong>完全离线</strong>的语音转文字工具：您的音频、识别出的文字、导出的文件，
+<strong>全部只在您的设备上处理</strong>，不传不到任何服务器，不接入任何第三方服务。</p>
+
+<h2>我们不收集什么</h2>
+<ul>
+  <li><strong>不收集</strong>您的任何音频、文本、导出文件或其他内容。</li>
+  <li><strong>不收集</strong>设备识别码、位置、通讯录、Cookie、账号信息。</li>
+  <li><strong>不接入</strong>任何分析、崩溃统计、推送、社交分享 SDK。</li>
+  <li><strong>没有</strong>账号、登录、注册流程。</li>
+  <li><strong>没有</strong>广告、没有追踪、没有 A/B 测试。</li>
+</ul>
+
+<h2>数据存在哪里</h2>
+<p>所有数据（转录历史、偏好设置）只存在您设备本地的 <code>localStorage</code> 里，
+删除应用即一并清除，<strong>不会</strong>同步到云端、不会备份到厂商服务器。</p>
+<p>在 Android 上我们主动关闭了 <code>allowBackup</code>，也是为了避免自动备份机制
+把您的转录内容同步到您的云端网盘 —— 这对一个卖点就是「数据不出本机」的应用来说
+是自相矛盾的。</p>
+
+<h2>权限说明</h2>
+<p>App 仅向系统申请实现核心功能所必需的权限，<strong>没有任何可选/兜底权限</strong>：</p>
+<ul>
+  <li><strong>麦克风（RECORD_AUDIO）</strong>：仅在您按下录音按钮时使用。系统会弹窗征求您的同意。
+  识别完成后音频流即释放，从不写盘、不缓存、不上传。</li>
+  <li><strong>本地存储（WRITE_EXTERNAL_STORAGE，Android 9 及以下）</strong>：仅在您主动
+  「保存为 txt / html」时使用一次，把文件写到您本机的「下载」目录。Android 10 起无需此权限。</li>
+</ul>
+<p>没有联网权限的实际用途：App 已关闭识别之外的任何网络请求，
+模型、推理运行时均打包在安装包内，离线即可使用。</p>
+
+<h2>第三方</h2>
+<p>App 没有内嵌任何第三方 SDK、广告、统计或分析组件；离线运行所需的
+whisper.cpp / onnxruntime / transformers.js 等开源运行时已编译进安装包，
+运行时不与上游通信。</p>
+
+<h2>未成年人</h2>
+<p>本应用不针对 13 岁以下儿童设计，但因不收集任何数据，对未成年人同样适用。</p>
+
+<h2>政策变更</h2>
+<p>如本政策发生重大变更，会在 App 内提示并要求您重新确认。</p>
+
+<h2>联系我们</h2>
+<p>如对个人数据处理有任何疑问、想要行使删除权，或需投诉，请通过下列方式联系我们。
+我们会在 15 个工作日内回复。</p>
+<ul>
+  <li>邮箱：<span class="mono">privacy@example.com</span>（占位，请替换为您的真实邮箱）</li>
+</ul>
+
+<hr style="margin-top:48px;border:none;border-top:1px solid var(--line);" />
+<p class="meta" style="margin-top:16px;">本文档为单文件 HTML，可直接静态托管。
+推荐放置位置：GitHub Pages、Cloudflare Pages、Netlify、对象存储 + CDN，皆可。</p>
+
+</body>
+</html>
