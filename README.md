@@ -490,17 +490,42 @@ Settings → Secrets and variables → Actions 需要这些：
 
 ### 酷安 ✅ 可直接上传
 
-接受直传 APK，没有体积上限问题。740 MB 的包可以直接发。
+接受直传 APK，没有体积上限问题。760 MB 的包可以直接发。
 
 ### Google Play ⚠️ 需要改打包方式
 
-**Play 对单个 APK 的硬上限是 200 MB。** 740 MB 的包直接传会被拒。
+**当前这个 APK 传不上去。** 先说清楚两套上限，很容易搞混：
+
+| 发布方式 | 上限 |
+| --- | --- |
+| **仍用 APK** 发布（旧式） | 单个 APK **100 MB** |
+| 改用 AAB：**base module** | **200 MB** |
+| 改用 AAB：**单个 asset pack** | **1.5 GB** |
+| 改用 AAB：模块 + install-time 资产包累计 | 4 GB |
+
+（以上均为 Play Console 计算的**压缩后下载体积**，不是文件原始大小。）
+
+我们是 760 MB，走哪条都超 —— 但换成 AAB + 资产包就宽裕了：**模型 726 MiB
+远低于单个 asset pack 的 1.5 GB**，只要把它从 base module 里挪出去即可。
 
 要上 Play 有两条路：
 
-1. **Play Asset Delivery（推荐）** —— 把模型拆成一个 `asset-pack`，
-   Play 会在安装时分发，用户侧体验不变。需要在 `build.gradle` 里加
-   `assetPacks` 配置并调整代码从 asset pack 读模型。工作量约半天。
+1. **Play Asset Delivery（推荐）** —— 模型拆成 `install-time` 资产包。
+
+   - `settings.gradle` 里加一个 `:models` 资产包模块，
+     `build.gradle` 用 `com.android.asset-pack` 插件，
+     `assetPack { packType = "install-time" }`
+   - 把 `models/` 整个挪进该模块的 `src/main/assets/`
+   - base module 加 `assetPacks = [":models"]`
+   - **运行时要改**：模型现在是通过 WebView 的
+     `https://appassets.androidplatform.net/assets/web/models/…` 加载的，
+     挪走后这个 URL 会 404。要么让 WebView 的资源加载器额外映射资产包目录，
+     要么加一个桥把资产包的真实路径告诉 JS
+     （`AssetPackManager.getPackLocation()`）。
+   - 用 `bundletool build-apks` + `install-apks` 可以在模拟器/真机上真跑一遍验证，
+     不需要先传 Play Console。
+
+   工作量约半天，主要成本在上面第 4 步。
 2. **首次启动时下载模型** —— 安装包回到 5 MB，模型改成进 App 后下载。
    代价：不再是"装完就能断网用"。
 
@@ -515,6 +540,10 @@ Settings → Secrets and variables → Actions 需要这些：
 - **审核注意**：App 必须能在无网络下完成核心功能（我们做到了），
   麦克风用途说明必须写清楚（`patch-ios.sh` 已自动写入中文说明）。
 - 审核可能要求提供演示账号 —— 本 App 没有账号体系，在备注里说明即可。
+- **体积要提前说明**：`.ipa` 约 740 MB，远超 App Store 的
+  **200 MB 蜂窝下载阈值**（用户可在「设置 → App Store → 蜂窝数据」里放开，
+  但默认是拦的）。这不影响上架，但建议在 App 描述里写一句
+  「首次安装需在 Wi-Fi 下进行」，否则容易收到一星差评。
 
 ### Microsoft Store ⚠️ 需要 EV 代码签名证书
 

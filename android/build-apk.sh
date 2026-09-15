@@ -9,8 +9,11 @@
 # 依赖：JDK 17、Android SDK、Gradle、Node（同步资源用）
 #
 # 注意：这个 APK 不能再传 Google Play。
-# Play 对单个 APK 的硬上限是 200MB，550MB 必须改用
-# Play Asset Delivery（把模型拆成 asset pack）才能上架。
+# 仍用 APK 发布走的是旧式上限：单个 APK 100MB。我们是 760MB，必拒。
+# （200MB 那个数字是 AAB 的 base module 上限，别搞混。）
+# 要上 Play 得改成 AAB + install-time 资产包：模型 726MiB 远低于
+# 单个 asset pack 的 1.5GB，只是得把它从 base module 里挪出去，
+# 并改运行时的模型加载路径。详见 README「上架准备」一节。
 # 酷安、应用宝、以及企业内分发都接受直传，不受此限。
 # ---------------------------------------------------------------
 
